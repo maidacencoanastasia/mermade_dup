@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Mermaid Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- Editor Pane -->
+        <div class="editor-pane">
+            <div class="header">
+                <span>&lt;/&gt; Code</span>
+                <span style="font-size: 12px; font-weight: normal; color: #6b7280;">Live Auto-Update</span>
+            </div>
+            <textarea id="code-input" spellcheck="false">
+flowchart TD
+    subgraph FASE1 ["1. Ambiente e Parametri Globali"]
+        A1["Programma Chiamante Halley (COBOL/HBL)"] -->|"Invia settaSYS(path)"| A2["Imposta variabile d'ambiente SYS"]
+        A1 -->|"Chiama loadINI()"| A3["Legge $SY/obj/hdmail.conf"]
+    end
+            </textarea>
+        </div>
+
+        <!-- Preview Pane -->
+        <div class="preview-pane">
+            <div class="header">
+                <span>Visualization</span>
+                <div class="btn-group">
+                    <button id="btn-png">Save PNG</button>
+                    <button id="btn-pdf">Save PDF</button>
+                </div>
+            </div>
+            <div id="error-message" class="error"></div>
+            <div class="preview-content" id="diagram-preview">
+                <!-- Diagram renders here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Mermaid JS -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose'
+        });
+
+        const input = document.getElementById('code-input');
+        const preview = document.getElementById('diagram-preview');
+        const errorMessage = document.getElementById('error-message');
+
+        let debounceTimer;
+
+        async function updateDiagram() {
+            const code = input.value.trim();
+
+            if (!code) {
+                preview.innerHTML = '';
+                errorMessage.style.display = 'none';
+                return;
+            }
+
+            try {
+                const { svg } = await mermaid.render('mermaid-svg-' + Date.now(), code);
+                preview.innerHTML = svg;
+                errorMessage.style.display = 'none';
+            } catch (error) {
+                errorMessage.textContent = error.message.split('\n')[0];
+                errorMessage.style.display = 'block';
+            }
+        }
+
+        // Auto-update on type
+        input.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateDiagram, 300);
+        });
+
+        // Initial render
+        updateDiagram();
+
+        // Save as PNG Functionality
+        document.getElementById('btn-png').addEventListener('click', () => {
+            const svgElement = preview.querySelector('svg');
+            if (!svgElement) return alert("No diagram to save!");
+
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            // Set canvas dimensions to 2x for higher resolution
+            const box = svgElement.getBoundingClientRect();
+            canvas.width = box.width * 2;
+            canvas.height = box.height * 2;
+
+            img.onload = () => {
+                // Fill white background
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Draw image scaled up
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Trigger download
+                const a = document.createElement('a');
+                a.download = 'diagram.png';
+                a.href = canvas.toDataURL('image/png');
+                a.click();
+            };
+
+            // Convert SVG to Base64
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        });
+
+        // Save as PDF Functionality (Triggers print dialog configured for the diagram only)
+        document.getElementById('btn-pdf').addEventListener('click', () => {
+            window.print();
+        });
+    </script>
+</body>
+
+</html>
